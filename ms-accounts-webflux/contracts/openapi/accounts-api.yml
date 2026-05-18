@@ -1,0 +1,575 @@
+openapi: 3.0.3
+
+# ============================================================
+# 📋 INFORMACIÓN GENERAL DE LA API
+# Esto es lo primero que ven otros equipos (frontend, QA, etc.)
+# ============================================================
+info:
+  title: Accounts API
+  description: |
+    Microservicio de Gestión de Cuentas Bancarias.
+    Permite crear, consultar, actualizar el estado y eliminar
+    cuentas bancarias asociadas a clientes del banco.
+  version: 1.0.0
+  contact:
+    name: Equipo Backend - Consultora Demo
+    email: backend-team@consultora-demo.example
+
+# ============================================================
+# 🌐 SERVIDORES
+# Define en qué entornos está disponible la API
+# ============================================================
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Servidor local de desarrollo
+  - url: https://dev.banco-demo.example/api/v1
+    description: Servidor de desarrollo (DEV)
+  - url: https://staging.banco-demo.example/api/v1
+    description: Servidor de pruebas (STAGING)
+
+# ============================================================
+# 🏷️ TAGS
+# Agrupan los endpoints en secciones lógicas en Swagger UI
+# ============================================================
+tags:
+  - name: Accounts
+    description: Operaciones sobre cuentas bancarias
+
+# ============================================================
+# 🛣️ ENDPOINTS (paths)
+# Aquí defines cada operación de tu API
+# ============================================================
+paths:
+
+  /accounts:
+
+    # ─── POST /accounts ────────────────────────────────────
+    post:
+      tags:
+        - Accounts
+      operationId: createAccount       # ⭐ Importante: el generador usará esto como nombre del método
+      summary: Crear una nueva cuenta bancaria
+      description: |
+        Crea una nueva cuenta bancaria para un cliente existente.
+        El número de cuenta es generado automáticamente por el sistema.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountRequest'
+            example:
+              customerId: "CLI-00123"
+              accountType: "SAVINGS"
+              currency: "PEN"
+              initialDeposit: 500.00
+      responses:
+        "201":
+          description: Cuenta creada exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponse'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "422":
+          $ref: '#/components/responses/UnprocessableEntity'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+
+    # ─── GET /accounts ─────────────────────────────────────
+    get:
+      tags:
+        - Accounts
+      operationId: listAccounts
+      summary: Listar cuentas bancarias
+      description: |
+        Retorna la lista de cuentas bancarias.
+        Se puede filtrar por cliente y/o por estado de la cuenta.
+      parameters:
+        - name: customerId
+          in: query
+          required: false
+          description: ID del cliente para filtrar sus cuentas
+          schema:
+            type: string
+            example: "CLI-00123"
+        - name: status
+          in: query
+          required: false
+          description: Estado de la cuenta para filtrar
+          schema:
+            $ref: '#/components/schemas/AccountStatus'
+        - name: page
+          in: query
+          required: false
+          description: Número de página (paginación)
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: size
+          in: query
+          required: false
+          description: Tamaño de página
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Lista de cuentas obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountPageResponse'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+
+  /accounts/{accountNumber}:
+
+    # ─── GET /accounts/{accountNumber} ─────────────────────
+    get:
+      tags:
+        - Accounts
+      operationId: getAccountByNumber
+      summary: Obtener una cuenta por número de cuenta
+      parameters:
+        - $ref: '#/components/parameters/AccountNumberParam'
+      responses:
+        "200":
+          description: Cuenta encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponse'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+
+    # ─── PUT /accounts/{accountNumber} ─────────────────────
+    put:
+      tags:
+        - Accounts
+      operationId: updateAccount
+      summary: Actualizar datos de una cuenta
+      description: Permite actualizar la información editable de una cuenta bancaria.
+      parameters:
+        - $ref: '#/components/parameters/AccountNumberParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountUpdateRequest'
+      responses:
+        "200":
+          description: Cuenta actualizada exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponse'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "422":
+          $ref: '#/components/responses/UnprocessableEntity'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+
+    # ─── DELETE /accounts/{accountNumber} ──────────────────
+    delete:
+      tags:
+        - Accounts
+      operationId: deleteAccount
+      summary: Eliminar (dar de baja) una cuenta
+      description: |
+        Realiza una baja lógica de la cuenta (no eliminación física).
+        La cuenta pasa al estado CLOSED.
+      parameters:
+        - $ref: '#/components/parameters/AccountNumberParam'
+      responses:
+        "204":
+          description: Cuenta eliminada exitosamente (sin contenido)
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+
+  /accounts/{accountNumber}/status:
+
+    # ─── PATCH /accounts/{accountNumber}/status ────────────
+    patch:
+      tags:
+        - Accounts
+      operationId: updateAccountStatus
+      summary: Cambiar el estado de una cuenta
+      description: |
+        Permite activar, bloquear o cerrar una cuenta bancaria.
+        Operación independiente del PUT para respetar el principio
+        de responsabilidad única en los endpoints.
+      parameters:
+        - $ref: '#/components/parameters/AccountNumberParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountStatusRequest'
+            example:
+              status: "BLOCKED"
+              reason: "Solicitud del cliente por pérdida de tarjeta"
+      responses:
+        "200":
+          description: Estado actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponse'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "422":
+          $ref: '#/components/responses/UnprocessableEntity'
+        "500":
+          $ref: '#/components/responses/InternalServerError'
+
+# ============================================================
+# 🧩 COMPONENTES REUTILIZABLES
+# Schemas, responses y parameters que se referencian arriba
+# ============================================================
+components:
+
+  # ── PARÁMETROS REUTILIZABLES ──────────────────────────────
+  parameters:
+    AccountNumberParam:
+      name: accountNumber
+      in: path
+      required: true
+      description: Número de cuenta bancaria (formato peruano CCI)
+      schema:
+        type: string
+        pattern: '^\d{20}$'
+        example: "00219100230000012345"
+
+  # ── SCHEMAS (modelos de datos) ────────────────────────────
+  schemas:
+
+    # Enum de tipos de cuenta
+    AccountType:
+      type: string
+      enum:
+        - SAVINGS        # Cuenta de ahorros
+        - CHECKING       # Cuenta corriente
+        - FIXED_TERM     # Plazo fijo
+      description: Tipo de cuenta bancaria
+
+    # Enum de estados de cuenta
+    AccountStatus:
+      type: string
+      enum:
+        - ACTIVE         # Operativa
+        - BLOCKED        # Bloqueada temporalmente
+        - CLOSED         # Cerrada definitivamente
+      description: Estado actual de la cuenta
+
+    # Enum de monedas
+    Currency:
+      type: string
+      enum:
+        - PEN            # Soles peruanos
+        - USD            # Dólares americanos
+      description: Moneda de la cuenta
+
+    # ── Request para CREAR cuenta ──
+    AccountRequest:
+      type: object
+      required:
+        - customerId
+        - accountType
+        - currency
+      properties:
+        customerId:
+          type: string
+          description: ID del cliente propietario de la cuenta
+          minLength: 1
+          maxLength: 20
+          example: "CLI-00123"
+        accountType:
+          $ref: '#/components/schemas/AccountType'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        initialDeposit:
+          type: number
+          description: Depósito inicial (opcional, mínimo 0)
+          minimum: 0
+          default: 0.00
+          example: 500.00
+
+    # ── Request para ACTUALIZAR cuenta ──
+    AccountUpdateRequest:
+      type: object
+      properties:
+        alias:
+          type: string
+          description: Alias o apodo de la cuenta definido por el cliente
+          maxLength: 50
+          example: "Mi cuenta de ahorros"
+
+    # ── Request para cambiar ESTADO ──
+    AccountStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          $ref: '#/components/schemas/AccountStatus'
+        reason:
+          type: string
+          description: Motivo del cambio de estado
+          maxLength: 255
+          example: "Solicitud del cliente"
+
+    # ── Response completo de una CUENTA ──
+    AccountResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID interno de la cuenta (UUID)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        accountNumber:
+          type: string
+          description: Número de cuenta (20 dígitos)
+          example: "00219100230000012345"
+        customerId:
+          type: string
+          description: ID del cliente propietario
+          example: "CLI-00123"
+        accountType:
+          $ref: '#/components/schemas/AccountType'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        balance:
+          type: number
+          description: Saldo actual de la cuenta
+          example: 1250.75
+        status:
+          $ref: '#/components/schemas/AccountStatus'
+        alias:
+          type: string
+          description: Alias de la cuenta
+          example: "Mi cuenta de ahorros"
+        createdAt:
+          type: string
+          format: date-time
+          description: Fecha y hora de creación en UTC
+          example: "2025-01-15T10:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: Fecha y hora de última actualización en UTC
+          example: "2025-05-10T08:00:00Z"
+
+    # ── Response paginado ──
+    AccountPageResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountResponse'
+          description: Lista de cuentas en la página actual
+        pageNumber:
+          type: integer
+          description: Número de página actual (base 0)
+          example: 0
+        pageSize:
+          type: integer
+          description: Cantidad de elementos por página
+          example: 10
+        totalElements:
+          type: integer
+          format: int64
+          description: Total de elementos en todas las páginas
+          example: 35
+        totalPages:
+          type: integer
+          description: Total de páginas disponibles
+          example: 4
+        first:
+          type: boolean
+          description: Indica si es la primera página
+          example: true
+        last:
+          type: boolean
+          description: Indica si es la última página
+          example: false
+
+    # ── Error estándar (alineado con ProblemDetail - RFC 7807) ──
+    ProblemDetail:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri
+          description: URI que identifica el tipo de error
+        title:
+          type: string
+          description: Título corto del error
+        status:
+          type: integer
+          description: Código HTTP
+        detail:
+          type: string
+          description: Descripción detallada del error
+        instance:
+          type: string
+          format: uri
+          description: URI de la instancia donde ocurrió el error
+        timestamp:
+          type: string
+          format: date-time
+        errors:
+          type: array
+          description: Lista de errores de validación (presente solo en 400)
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+
+  # ── RESPONSES REUTILIZABLES ───────────────────────────────
+  responses:
+
+    BadRequest:
+      description: Datos de entrada inválidos (error de validación)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+          examples:
+            validation-error:
+              summary: Error de validación en campos
+              value:
+                type: "https://banco-demo.example/errors/validation-error"
+                title: "Bad Request"
+                status: 400
+                detail: "Uno o más campos no superaron la validación"
+                instance: "/api/v1/accounts"
+                timestamp: "2025-05-14T10:30:00Z"
+                errors:
+                  - field: "customerId"
+                    message: "El campo no puede estar vacío"
+                  - field: "currency"
+                    message: "Valor no permitido. Use: PEN, USD"
+            malformed-request:
+              summary: Petición mal formada
+              value:
+                type: "https://banco-demo.example/errors/malformed-request"
+                title: "Bad Request"
+                status: 400
+                detail: "El cuerpo de la petición no es un JSON válido"
+                instance: "/api/v1/accounts"
+                timestamp: "2025-05-14T10:30:00Z"
+
+    NotFound:
+      description: Recurso no encontrado
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+          examples:
+            account-not-found:
+              summary: Cuenta no encontrada
+              value:
+                type: "https://banco-demo.example/errors/account-not-found"
+                title: "Not Found"
+                status: 404
+                detail: "No se encontró la cuenta con número 00219100230000012345"
+                instance: "/api/v1/accounts/00219100230000012345"
+                timestamp: "2025-05-14T10:30:00Z"
+
+    Conflict:
+      description: Conflicto con el estado actual del recurso
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+          examples:
+            invalid-status-transition:
+              summary: Transición de estado en conflicto
+              value:
+                type: "https://banco-demo.example/errors/invalid-status-transition"
+                title: "Conflict"
+                status: 409
+                detail: "La cuenta ya se encuentra en estado BLOCKED"
+                instance: "/api/v1/accounts/00219100230000012345/status"
+                timestamp: "2025-05-14T10:30:00Z"
+
+    UnprocessableEntity:
+      description: Regla de negocio no cumplida
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+          examples:
+
+            # Ejemplo para POST /accounts
+            max-accounts-reached:
+              summary: "[POST] Cliente alcanzó el máximo de cuentas permitidas"
+              value:
+                type: "https://banco-demo.example/errors/business-rule-violation"
+                title: "Unprocessable Entity"
+                status: 422
+                detail: "El cliente CLI-00123 ya tiene el máximo de cuentas permitidas"
+                instance: "/api/v1/accounts"
+                timestamp: "2025-05-14T10:30:00Z"
+
+            # Ejemplo para PUT /accounts/{accountNumber}
+            alias-not-allowed-on-closed:
+              summary: "[PUT] No se puede modificar una cuenta cerrada"
+              value:
+                type: "https://banco-demo.example/errors/business-rule-violation"
+                title: "Unprocessable Entity"
+                status: 422
+                detail: "No se permite modificar el alias de una cuenta en estado CLOSED"
+                instance: "/api/v1/accounts/00219100230000012345"
+                timestamp: "2025-05-14T10:30:00Z"
+
+            # Ejemplo para PATCH /accounts/{accountNumber}/status
+            closed-account-cannot-reactivate:
+              summary: "[PATCH] No se puede reactivar una cuenta cerrada"
+              value:
+                type: "https://banco-demo.example/errors/business-rule-violation"
+                title: "Unprocessable Entity"
+                status: 422
+                detail: "No se puede activar una cuenta que está CLOSED"
+                instance: "/api/v1/accounts/00219100230000012345/status"
+                timestamp: "2025-05-14T10:30:00Z"
+
+    InternalServerError:
+      description: Error interno del servidor
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+          examples:
+            unexpected-error:
+              summary: Error inesperado del servidor
+              value:
+                type: "https://banco-demo.example/errors/internal-error"
+                title: "Internal Server Error"
+                status: 500
+                detail: "Ocurrió un error inesperado. Por favor contacte al administrador"
+                instance: "/api/v1/accounts"
+                timestamp: "2025-05-14T10:30:00Z"
