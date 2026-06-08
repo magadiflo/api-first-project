@@ -313,7 +313,7 @@ components:
           example: 500.00
 
     # ── Request para ACTUALIZAR cuenta ──
-    c:
+    AccountUpdateRequest:
       type: object
       properties:
         alias:
