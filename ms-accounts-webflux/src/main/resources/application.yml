@@ -1,3 +1,29 @@
+server:
+  port: 8080
+  error:
+    include-message: always
+
 spring:
   application:
     name: ms-accounts-webflux
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5432/db_ms_accounts_webflux
+    username: postgres
+    password: magadiflo
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:sql/schema.sql
+      data-locations: classpath:sql/data.sql
+  # API Versioning (Spring Boot 4)
+  webflux:
+    api-version:
+      required: true
+      supported: 1,2
+      use:
+        path-segment: 1
+
+logging:
+  level:
+    io.r2dbc.postgresql.QUERY: debug
+    io.r2dbc.postgresql.PARAM: debug
