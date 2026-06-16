@@ -1,4 +1,4 @@
-package dev.magadiflo.accounts.app.exception;
+package dev.magadiflo.accounts.app.exception.factory;
 
 import dev.magadiflo.accounts.app.exception.model.AccountNotFoundException;
 import dev.magadiflo.accounts.app.exception.model.BusinessRuleException;

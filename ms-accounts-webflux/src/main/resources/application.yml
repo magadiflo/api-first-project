@@ -25,5 +25,6 @@ spring:
 
 logging:
   level:
+    dev.magadiflo.accounts.app: debug
     io.r2dbc.postgresql.QUERY: debug
     io.r2dbc.postgresql.PARAM: debug

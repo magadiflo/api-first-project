@@ -3,7 +3,7 @@ package dev.magadiflo.accounts.app.domain.service.impl;
 import dev.magadiflo.accounts.app.domain.entity.Account;
 import dev.magadiflo.accounts.app.domain.repository.AccountRepository;
 import dev.magadiflo.accounts.app.domain.service.AccountService;
-import dev.magadiflo.accounts.app.exception.AccountErrors;
+import dev.magadiflo.accounts.app.exception.factory.AccountErrors;
 import dev.magadiflo.accounts.app.mapper.AccountMapper;
 import dev.magadiflo.accounts.app.model.AccountPageResponse;
 import dev.magadiflo.accounts.app.model.AccountRequest;
