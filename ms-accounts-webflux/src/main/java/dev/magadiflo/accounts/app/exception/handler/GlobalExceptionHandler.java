@@ -15,6 +15,8 @@ import org.springframework.web.bind.support.WebExchangeBindException;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -108,6 +110,7 @@ public class GlobalExceptionHandler {
     private ProblemDetail buildProblemDetail(HttpStatus status, Exception ex, Consumer<ProblemDetail> problemDetailConsumer) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(status, ex.getMessage());
         problemDetail.setTitle(status.getReasonPhrase());
+        problemDetail.setProperty("timestamp", Instant.now().truncatedTo(ChronoUnit.MICROS));
 
         problemDetailConsumer.accept(problemDetail);
         return problemDetail;
