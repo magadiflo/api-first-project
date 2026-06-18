@@ -23,6 +23,10 @@ spring:
       use:
         path-segment: 1
 
+springdoc:
+  swagger-ui:
+    path: /api/v1/swagger-ui.html
+
 logging:
   level:
     dev.magadiflo.accounts.app: debug
