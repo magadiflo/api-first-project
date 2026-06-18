@@ -4,6 +4,8 @@ import dev.magadiflo.accounts.app.exception.model.AccountNotFoundException;
 import dev.magadiflo.accounts.app.exception.model.BusinessRuleException;
 import dev.magadiflo.accounts.app.exception.model.InvalidStatusTransitionException;
 import dev.magadiflo.accounts.app.exception.response.ValidationError;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -12,6 +14,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.support.WebExchangeBindException;
+import org.springframework.web.server.ServerWebInputException;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
@@ -95,6 +98,42 @@ public class GlobalExceptionHandler {
                 .body(problemDetailResponse));
     }
 
+    @ExceptionHandler(ServerWebInputException.class)
+    public Mono<ResponseEntity<ProblemDetail>> handleServerWebInputException(ServerWebInputException ex) {
+        log.debug("ServerWebInputException: {}", ex.getMessage());
+        var problemDetailResponse = this.buildProblemDetail(HttpStatus.BAD_REQUEST, ex, problemDetail -> {
+            problemDetail.setType(URI.create("https://banco-demo.example/errors/malformed-request"));
+            problemDetail.setDetail("El cuerpo de la petición no es un JSON válido");
+        });
+
+        return Mono.just(ResponseEntity
+                .status(problemDetailResponse.getStatus())
+                .body(problemDetailResponse));
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public Mono<ResponseEntity<ProblemDetail>> handleConstraintViolationException(ConstraintViolationException ex) {
+        log.debug("ConstraintViolationException: {}", ex.getMessage());
+
+        List<ValidationError> errors = ex.getConstraintViolations()
+                .stream()
+                .map(violation -> new ValidationError(
+                        this.extractFieldName(violation),
+                        violation.getMessage()
+                ))
+                .toList();
+
+        var problemDetailResponse = this.buildProblemDetail(HttpStatus.BAD_REQUEST, ex, problemDetail -> {
+            problemDetail.setType(URI.create("https://banco-demo.example/errors/validation-error"));
+            problemDetail.setDetail("Uno o más campos no superaron la validación");
+            problemDetail.setProperty("errors", errors);
+        });
+
+        return Mono.just(ResponseEntity
+                .status(problemDetailResponse.getStatus())
+                .body(problemDetailResponse));
+    }
+
     @ExceptionHandler(Exception.class)
     public Mono<ResponseEntity<ProblemDetail>> handleGenericException(Exception ex) {
         log.error("Unhandled exception: {}", ex.getMessage(), ex);
@@ -114,5 +153,13 @@ public class GlobalExceptionHandler {
 
         problemDetailConsumer.accept(problemDetail);
         return problemDetail;
+    }
+
+    private String extractFieldName(ConstraintViolation<?> violation) {
+        String propertyPath = violation.getPropertyPath().toString();
+        // El path viene como "nombreMetodo.nombreParametro" (ej: "deleteAccount.accountNumber"),
+        // extraemos solo "accountNumber"
+        int lastDot = propertyPath.lastIndexOf('.');
+        return lastDot >= 0 ? propertyPath.substring(lastDot + 1) : propertyPath;
     }
 }
